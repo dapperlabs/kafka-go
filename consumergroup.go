@@ -165,7 +165,7 @@ func (config *ConsumerGroupConfig) Validate() error {
 	}
 
 	if config.Dialer == nil {
-		config.Dialer = DefaultDialer
+		config.Dialer = NewDialer()
 	}
 
 	if len(config.GroupBalancers) == 0 {

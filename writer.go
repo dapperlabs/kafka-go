@@ -136,6 +136,7 @@ type WriterConfig struct {
 // WriterStats is a data structure returned by a call to Writer.Stats that
 // exposes details about the behavior of the writer.
 type WriterStats struct {
+	DialerStats
 	Dials      int64 `metric:"kafka.writer.dial.count"      type:"counter"`
 	Writes     int64 `metric:"kafka.writer.write.count"     type:"counter"`
 	Messages   int64 `metric:"kafka.writer.message.count"   type:"counter"`
@@ -207,7 +208,7 @@ func NewWriter(config WriterConfig) *Writer {
 	}
 
 	if config.Dialer == nil {
-		config.Dialer = DefaultDialer
+		config.Dialer = NewDialer()
 	}
 
 	if config.Balancer == nil {
@@ -363,7 +364,9 @@ func (w *Writer) WriteMessages(ctx context.Context, msgs ...Message) error {
 // call Stats on a kafka writer and report the metrics to a stats collection
 // system.
 func (w *Writer) Stats() WriterStats {
+
 	return WriterStats{
+		DialerStats:       w.config.Dialer.Stats(),
 		Dials:             w.stats.dials.snapshot(),
 		Writes:            w.stats.writes.snapshot(),
 		Messages:          w.stats.messages.snapshot(),

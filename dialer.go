@@ -74,6 +74,42 @@ type Dialer struct {
 	// For more details look at transactional.id description here: http://kafka.apache.org/documentation.html#producerconfigs
 	// Empty string means that the connection will be non-transactional.
 	TransactionalID string
+
+	// add dialer stats
+	stats *dialerStats
+}
+
+// dialerStats is a struct that contains statistics on a dailer.
+//
+// Since atomic is used to mutate the statistics the values must be 64-bit aligned.
+// This is easily accomplished by always allocating this struct directly, (i.e. using a pointer to the struct).
+// See https://golang.org/pkg/sync/atomic/#pkg-note-BUG
+type dialerStats struct {
+	lookupPartitionTime summary
+	dialPartitionTime   summary
+	readPartitionsTime  summary
+	netDialTime         summary
+	tlsConnectionTime   summary
+}
+
+// DialerStats is a data structure returned by a call to Dailer.Stats that
+// exposes details about the behavior of the writer.
+type DialerStats struct {
+	PartitionLookupsDialTime DurationStats `metric:"kafka.writer.dial.lookuppartition.seconds"`
+	DialPartitionTime        DurationStats `metric:"kafka.writer.dial.dialpartition.seconds"`
+	ReadPartitionTime        DurationStats `metric:"kafka.writer.dial.readpartition.seconds"`
+	NetDialTime              DurationStats `metric:"kafka.writer.dial.net.seconds"`
+	TLSHandshakeTime         DurationStats `metric:"kafka.writer.dial.tls.seconds"`
+}
+
+func (d *Dialer) Stats() DialerStats {
+	return DialerStats{
+		PartitionLookupsDialTime: d.stats.lookupPartitionTime.snapshotDuration(),
+		DialPartitionTime:        d.stats.dialPartitionTime.snapshotDuration(),
+		ReadPartitionTime:        d.stats.readPartitionsTime.snapshotDuration(),
+		NetDialTime:              d.stats.netDialTime.snapshotDuration(),
+		TLSHandshakeTime:         d.stats.tlsConnectionTime.snapshotDuration(),
+	}
 }
 
 // Dial connects to the address on the named network.
@@ -115,11 +151,20 @@ func (d *Dialer) DialContext(ctx context.Context, network string, address string
 // The original address is only used as a mechanism to discover the
 // configuration of the kafka cluster that we're connecting to.
 func (d *Dialer) DialLeader(ctx context.Context, network string, address string, topic string, partition int) (*Conn, error) {
+	t0 := time.Now()
 	p, err := d.LookupPartition(ctx, network, address, topic, partition)
 	if err != nil {
 		return nil, err
 	}
-	return d.DialPartition(ctx, network, address, p)
+	t1 := time.Now()
+	d.stats.lookupPartitionTime.observeDuration(t1.Sub(t0))
+
+	c, err := d.DialPartition(ctx, network, address, p)
+	if err != nil {
+		t2 := time.Now()
+		d.stats.dialPartitionTime.observeDuration(t2.Sub(t1))
+	}
+	return c, err
 }
 
 // DialPartition opens a connection to the leader of the partition specified by partition
@@ -181,6 +226,8 @@ func (d *Dialer) LookupPartition(ctx context.Context, network string, address st
 		errch <- UnknownTopicOrPartition
 	}()
 
+	// ctx is background context, so it has no done
+	t0 := time.Now()
 	var prt Partition
 	select {
 	case prt = <-brkch:
@@ -188,6 +235,8 @@ func (d *Dialer) LookupPartition(ctx context.Context, network string, address st
 	case <-ctx.Done():
 		err = ctx.Err()
 	}
+
+	d.stats.readPartitionsTime.observeDuration(time.Since(t0))
 	return prt, err
 }
 
@@ -210,6 +259,7 @@ func (d *Dialer) LookupPartitions(ctx context.Context, network string, address s
 		}
 	}()
 
+	t0 := time.Now()
 	var prt []Partition
 	select {
 	case prt = <-prtch:
@@ -217,6 +267,7 @@ func (d *Dialer) LookupPartitions(ctx context.Context, network string, address s
 	case <-ctx.Done():
 		err = ctx.Err()
 	}
+	d.stats.readPartitionsTime.observeDuration(time.Since(t0))
 	return prt, err
 }
 
@@ -224,6 +275,7 @@ func (d *Dialer) LookupPartitions(ctx context.Context, network string, address s
 func (d *Dialer) connectTLS(ctx context.Context, conn net.Conn, config *tls.Config) (tlsConn *tls.Conn, err error) {
 	tlsConn = tls.Client(conn, config)
 	errch := make(chan error)
+	t0 := time.Now()
 
 	go func() {
 		defer close(errch)
@@ -239,6 +291,8 @@ func (d *Dialer) connectTLS(ctx context.Context, conn net.Conn, config *tls.Conf
 
 	case err = <-errch:
 	}
+
+	d.stats.tlsConnectionTime.observeDuration(time.Since(t0))
 
 	return
 }
@@ -329,12 +383,17 @@ func (d *Dialer) dialContext(ctx context.Context, network string, address string
 		}
 	}
 
+	t0 := time.Now()
+
 	conn, err := (&net.Dialer{
 		LocalAddr:     d.LocalAddr,
 		DualStack:     d.DualStack,
 		FallbackDelay: d.FallbackDelay,
 		KeepAlive:     d.KeepAlive,
 	}).DialContext(ctx, network, address)
+
+	d.stats.netDialTime.observeDuration(time.Since(t0))
+
 	if err != nil {
 		return nil, err
 	}
@@ -359,40 +418,28 @@ func (d *Dialer) dialContext(ctx context.Context, network string, address string
 	return conn, nil
 }
 
-// DefaultDialer is the default dialer used when none is specified.
-var DefaultDialer = &Dialer{
-	Timeout:   10 * time.Second,
-	DualStack: true,
-}
+// DialerOptions is the mutating options function for setting dialer options
+type DialerOptions func(*Dialer)
 
-// Dial is a convenience wrapper for DefaultDialer.Dial.
-func Dial(network string, address string) (*Conn, error) {
-	return DefaultDialer.Dial(network, address)
-}
-
-// DialContext is a convenience wrapper for DefaultDialer.DialContext.
-func DialContext(ctx context.Context, network string, address string) (*Conn, error) {
-	return DefaultDialer.DialContext(ctx, network, address)
-}
-
-// DialLeader is a convenience wrapper for DefaultDialer.DialLeader.
-func DialLeader(ctx context.Context, network string, address string, topic string, partition int) (*Conn, error) {
-	return DefaultDialer.DialLeader(ctx, network, address, topic, partition)
-}
-
-// DialPartition is a convenience wrapper for DefaultDialer.DialPartition.
-func DialPartition(ctx context.Context, network string, address string, partition Partition) (*Conn, error) {
-	return DefaultDialer.DialPartition(ctx, network, address, partition)
-}
-
-// LookupPartition is a convenience wrapper for DefaultDialer.LookupPartition.
-func LookupPartition(ctx context.Context, network string, address string, topic string, partition int) (Partition, error) {
-	return DefaultDialer.LookupPartition(ctx, network, address, topic, partition)
-}
-
-// LookupPartitions is a convenience wrapper for DefaultDialer.LookupPartitions.
-func LookupPartitions(ctx context.Context, network string, address string, topic string) ([]Partition, error) {
-	return DefaultDialer.LookupPartitions(ctx, network, address, topic)
+// NewDialer is the factory function
+// With no options, it will create a dialer with 10s timeout
+// and dualstack enabled
+func NewDialer(ops ...DialerOptions) *Dialer {
+	d := &Dialer{
+		Timeout:   10 * time.Second,
+		DualStack: true,
+		stats: &dialerStats{
+			lookupPartitionTime: makeSummary(),
+			dialPartitionTime:   makeSummary(),
+			readPartitionsTime:  makeSummary(),
+			tlsConnectionTime:   makeSummary(),
+			netDialTime:         makeSummary(),
+		},
+	}
+	for _, op := range ops {
+		op(d)
+	}
+	return d
 }
 
 // The Resolver interface is used as an abstraction to provide service discovery

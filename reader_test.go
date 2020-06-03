@@ -266,7 +266,7 @@ func testReaderOutOfRangeGetsCanceled(t *testing.T, ctx context.Context, r *Read
 }
 
 func createTopic(t *testing.T, topic string, partitions int) {
-	conn, err := Dial("tcp", "localhost:9092")
+	conn, err := NewDialer().Dial("tcp", "localhost:9092")
 	if err != nil {
 		t.Error("bad conn")
 		return
@@ -408,7 +408,7 @@ func prepareReader(t *testing.T, ctx context.Context, r *Reader, msgs ...Message
 	var err error
 
 	for {
-		if conn, err = DialLeader(ctx, "tcp", "localhost:9092", config.Topic, config.Partition); err == nil {
+		if conn, err = NewDialer().DialLeader(ctx, "tcp", "localhost:9092", config.Topic, config.Partition); err == nil {
 			break
 		}
 		select {
@@ -436,7 +436,7 @@ func BenchmarkReader(b *testing.B) {
 	ctx := context.Background()
 
 	benchmarkReaderOnce.Do(func() {
-		conn, err := DialLeader(ctx, "tcp", broker, benchmarkReaderTopic, 0)
+		conn, err := NewDialer().DialLeader(ctx, "tcp", broker, benchmarkReaderTopic, 0)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -496,7 +496,7 @@ func TestCloseLeavesGroup(t *testing.T) {
 	})
 	prepareReader(t, ctx, r, Message{Value: []byte("test")})
 
-	conn, err := Dial("tcp", r.config.Brokers[0])
+	conn, err := NewDialer().Dial("tcp", r.config.Brokers[0])
 	if err != nil {
 		t.Fatalf("error dialing: %v", err)
 	}

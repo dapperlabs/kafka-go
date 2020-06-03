@@ -31,7 +31,7 @@ func TestDialer(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			testFunc(t, ctx, &Dialer{})
+			testFunc(t, ctx, NewDialer())
 		})
 	}
 }
@@ -169,6 +169,12 @@ wE3YmpC3Q0g9r44nEbz4Bw==
 	}
 }
 
+func withTLSConfig(t *tls.Config) func(*Dialer) {
+	return func(d *Dialer) {
+		d.TLS = t
+	}
+}
+
 func TestDialerTLS(t *testing.T) {
 	t.Parallel()
 
@@ -216,9 +222,7 @@ func TestDialerTLS(t *testing.T) {
 	}()
 
 	// Use the tls.Config and connect to the SSL proxy
-	d := &Dialer{
-		TLS: config,
-	}
+	d := NewDialer(withTLSConfig(config))
 	partitions, err := d.LookupPartitions(context.Background(), "tcp", l.Addr().String(), topic)
 	if err != nil {
 		t.Error(err)
@@ -285,9 +289,7 @@ func (m *MockConn) ReadPartitions(topics ...string) (partitions []Partition, err
 
 func TestDialerConnectTLSHonorsContext(t *testing.T) {
 	config := tlsConfig(t)
-	d := &Dialer{
-		TLS: config,
-	}
+	d := NewDialer(withTLSConfig(config))
 
 	conn := &MockConn{
 		done: make(chan struct{}),

@@ -86,13 +86,18 @@ func TestSASL(t *testing.T) {
 	}
 }
 
+func withSASLMechanism(s sasl.Mechanism) func(*kafka.Dialer) {
+	return func(d *kafka.Dialer) {
+		d.SASLMechanism = s
+	}
+}
+
 func testConnect(t *testing.T, mechanism sasl.Mechanism, success bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	d := kafka.Dialer{
-		SASLMechanism: mechanism,
-	}
+	d := kafka.NewDialer(withSASLMechanism(mechanism))
+
 	_, err := d.DialLeader(ctx, "tcp", saslTestConnect, saslTestTopic, 0)
 	if success && err != nil {
 		t.Errorf("should have logged in correctly, got err: %v", err)

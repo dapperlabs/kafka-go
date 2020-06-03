@@ -278,9 +278,7 @@ func TestConn(t *testing.T) {
 
 			topic := makeTopic()
 
-			conn, err := (&Dialer{
-				Resolver: &net.Resolver{},
-			}).DialLeader(ctx, tcp, kafka, topic, 0)
+			conn, err := NewDialer(withTestResolver).DialLeader(ctx, tcp, kafka, topic, 0)
 			if err != nil {
 				t.Fatal("failed to open a new kafka connection:", err)
 			}
@@ -299,7 +297,7 @@ func TestConn(t *testing.T) {
 			var t2Reader *Conn
 			var t1Writer *Conn
 			var t2Writer *Conn
-			var dialer = &Dialer{}
+			var dialer = NewDialer()
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
@@ -1025,7 +1023,7 @@ func testBrokers(t *testing.T, conn *Conn) {
 }
 
 func TestReadPartitionsNoTopic(t *testing.T) {
-	conn, err := Dial("tcp", "127.0.0.1:9092")
+	conn, err := NewDialer().Dial("tcp", "127.0.0.1:9092")
 	if err != nil {
 		t.Error(err)
 	}
@@ -1045,9 +1043,7 @@ func TestUnsupportedSASLMechanism(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	conn, err := (&Dialer{
-		Resolver: &net.Resolver{},
-	}).DialContext(ctx, "tcp", "127.0.0.1:9093")
+	conn, err := NewDialer(withTestResolver).DialContext(ctx, "tcp", "127.0.0.1:9093")
 	if err != nil {
 		t.Fatal("failed to open a new kafka connection:", err)
 	}
@@ -1099,7 +1095,7 @@ func BenchmarkConn(b *testing.B) {
 		msgs[i].Value = value
 	}
 
-	conn, _ := DialLeader(context.Background(), "tcp", "localhost:9092", topic, 0)
+	conn, _ := NewDialer().DialLeader(context.Background(), "tcp", "localhost:9092", topic, 0)
 	defer conn.Close()
 
 	if _, err := conn.WriteMessages(msgs...); err != nil {

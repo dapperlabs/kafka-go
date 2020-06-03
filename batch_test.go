@@ -8,12 +8,14 @@ import (
 	"testing"
 )
 
+func withTestResolver(d *Dialer) {
+	d.Resolver = &net.Resolver{}
+}
+
 func TestBatchDontExpectEOF(t *testing.T) {
 	topic := makeTopic()
 
-	broker, err := (&Dialer{
-		Resolver: &net.Resolver{},
-	}).LookupLeader(context.Background(), "tcp", "localhost:9092", topic, 0)
+	broker, err := NewDialer(withTestResolver).LookupLeader(context.Background(), "tcp", "localhost:9092", topic, 0)
 	if err != nil {
 		t.Fatal("failed to open a new kafka connection:", err)
 	}

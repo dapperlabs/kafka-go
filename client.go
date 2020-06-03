@@ -42,12 +42,12 @@ type TopicAndGroup struct {
 // NewClient creates and returns a *Client taking ...string of bootstrap
 // brokers for connecting to the cluster.
 func NewClient(brokers ...string) *Client {
-	return NewClientWith(ClientConfig{Brokers: brokers, Dialer: DefaultDialer})
+	return NewClientWith(ClientConfig{Brokers: brokers, Dialer: NewDialer()})
 }
 
 // NewClientWith creates and returns a *Client. For safety, it copies the []string of bootstrap
 // brokers for connecting to the cluster and uses the user supplied Dialer.
-// In the event the Dialer is nil, we use the DefaultDialer.
+// In the event the Dialer is nil, we use the dialer returned from NewDialer().
 func NewClientWith(config ClientConfig) *Client {
 	if len(config.Brokers) == 0 {
 		panic("must provide at least one broker")
@@ -57,7 +57,7 @@ func NewClientWith(config ClientConfig) *Client {
 	copy(b, config.Brokers)
 	d := config.Dialer
 	if d == nil {
-		d = DefaultDialer
+		d = NewDialer()
 	}
 
 	return &Client{

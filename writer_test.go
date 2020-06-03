@@ -243,7 +243,7 @@ func testWriterMaxBytes(t *testing.T) {
 func readOffset(topic string, partition int) (offset int64, err error) {
 	var conn *Conn
 
-	if conn, err = DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition); err != nil {
+	if conn, err = NewDialer().DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition); err != nil {
 		return
 	}
 	defer conn.Close()
@@ -255,7 +255,7 @@ func readOffset(topic string, partition int) (offset int64, err error) {
 func readPartition(topic string, partition int, offset int64) (msgs []Message, err error) {
 	var conn *Conn
 
-	if conn, err = DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition); err != nil {
+	if conn, err = NewDialer().DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition); err != nil {
 		return
 	}
 	defer conn.Close()

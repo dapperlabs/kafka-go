@@ -546,7 +546,7 @@ func NewReader(config ReaderConfig) *Reader {
 	}
 
 	if config.Dialer == nil {
-		config.Dialer = DefaultDialer
+		config.Dialer = NewDialer()
 	}
 
 	if config.MaxBytes == 0 {

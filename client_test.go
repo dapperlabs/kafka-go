@@ -44,7 +44,7 @@ func testConsumerGroupFetchOffsets(t *testing.T, ctx context.Context, c *Client)
 	writer := NewWriter(WriterConfig{
 		Brokers:   brokers,
 		Topic:     topic,
-		Dialer:    DefaultDialer,
+		Dialer:    NewDialer(),
 		Balancer:  &RoundRobin{},
 		BatchSize: 1,
 	})

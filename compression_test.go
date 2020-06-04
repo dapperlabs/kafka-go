@@ -14,12 +14,12 @@ import (
 	"text/tabwriter"
 	"time"
 
-	kafka "github.com/segmentio/kafka-go"
-	"github.com/segmentio/kafka-go/gzip"
-	"github.com/segmentio/kafka-go/lz4"
-	"github.com/segmentio/kafka-go/snappy"
-	ktesting "github.com/segmentio/kafka-go/testing"
-	"github.com/segmentio/kafka-go/zstd"
+	kafka "github.com/dapperlabs/kafka-go"
+	"github.com/dapperlabs/kafka-go/gzip"
+	"github.com/dapperlabs/kafka-go/lz4"
+	"github.com/dapperlabs/kafka-go/snappy"
+	ktesting "github.com/dapperlabs/kafka-go/testing"
+	"github.com/dapperlabs/kafka-go/zstd"
 )
 
 func TestCompression(t *testing.T) {

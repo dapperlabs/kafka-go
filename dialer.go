@@ -160,7 +160,7 @@ func (d *Dialer) DialLeader(ctx context.Context, network string, address string,
 	d.stats.lookupPartitionTime.observeDuration(t1.Sub(t0))
 
 	c, err := d.DialPartition(ctx, network, address, p)
-	if err != nil {
+	if err == nil {
 		t2 := time.Now()
 		d.stats.dialPartitionTime.observeDuration(t2.Sub(t1))
 	}
